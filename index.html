@@ -554,18 +554,7 @@
     }
   });
 
-  // Mobile
-  const jArea = document.getElementById('joystickArea');
-  let jActive = false, jC = { x: 0, y: 0 };
-  jArea.addEventListener('touchstart', (e) => { jActive = true; const rect = jArea.getBoundingClientRect(); jC.x = rect.left + rect.width / 2; jC.y = rect.top + rect.height / 2; e.preventDefault(); });
-  jArea.addEventListener('touchmove', (e) => { if (!jActive) return; const t = e.touches[0]; mobileJoystick.x = Math.min(1, Math.max(-1, (t.clientX - jC.x) / 50)); mobileJoystick.y = Math.min(1, Math.max(-1, (t.clientY - jC.y) / 50)); e.preventDefault(); });
-  jArea.addEventListener('touchend', () => { jActive = false; mobileJoystick.x = 0; mobileJoystick.y = 0; });
-  document.getElementById('shootButton').addEventListener('touchstart', () => { inputs.shoot = true; });
-  document.getElementById('shootButton').addEventListener('touchend', () => { inputs.shoot = false; });
-  document.getElementById('enterVehicleBtn').addEventListener('click', () => { inputs.enter = true; setTimeout(() => inputs.enter = false, 150); });
-  document.getElementById('aimButton').addEventListener('touchstart', () => { inputs.aim = true; });
-  document.getElementById('aimButton').addEventListener('touchend', () => { inputs.aim = false; });
-
+ 
   function updateHealthUI() { document.getElementById('healthFill').style.width = (game.health / game.maxHealth * 100) + '%'; }
   function updateArmorUI() { document.getElementById('armorFill').style.width = game.armor + '%'; }
   function updateMoneyUI() { document.getElementById('moneyDisplay').innerHTML = `💰 ${Math.floor(game.money)}`; document.getElementById('coinDisplay').innerHTML = `🪙 PLACOSO: ${game.placosoCoins}`; }
