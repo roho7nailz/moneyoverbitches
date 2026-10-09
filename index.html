@@ -142,27 +142,8 @@
       backdrop-filter: blur(5px);
       font-family: monospace;
     }
-    #mobile-controls {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      display: none;
-      pointer-events: none;
-      z-index: 200;
-    }
-    .joystick-area {
-      position: absolute;
-      bottom: 30px;
-      left: 30px;
-      width: 140px;
-      height: 140px;
-      background: rgba(30,30,40,0.7);
-      border-radius: 50%;
-      backdrop-filter: blur(15px);
-      border: 2px solid rgba(255,200,100,0.8);
-      pointer-events: auto;
-    }
+   
+  
     .shoot-btn {
       position: absolute;
       bottom: 30px;
@@ -652,9 +633,7 @@
       if (inputs.backward) moveZ += 1;
       if (inputs.left) moveX -= 1;
       if (inputs.right) moveX += 1;
-    } else { moveX = mobileJoystick.x; moveZ = -mobileJoystick.y; }
-    const speed = (inputs.sprint ? 10.2 : 6.4) * delta;
-    if (pointerLock) { camera.rotation.order = 'YXZ'; camera.rotation.y = mouseX; camera.rotation.x = mouseY; }
+    }
 
     const moving = (moveX !== 0 || moveZ !== 0) && !game.inVehicle;
     if (moving) {
