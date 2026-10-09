@@ -241,7 +241,20 @@
   <div id="crosshair"></div>
   <div id="damageFlash" class="damage-overlay"></div>
 </div>
+<div id="app">
+  <div id="crosshair"></div>
+  <div id="hud">…</div>
 
+  <div class="pad" id="movePad">
+    <div class="knob"></div>
+    <div class="label">MOVE</div>
+  </div>
+
+  <div class="pad" id="lookPad">
+    <div class="knob"></div>
+    <div class="label">LOOK</div>
+  </div>
+</div>
 
 <script type="importmap">
   { "imports": { "three": "https://unpkg.com/three@0.128.0/build/three.module.js" } }
@@ -685,20 +698,10 @@
   updateHealthUI(); updateArmorUI(); updateMoneyUI(); updateWeaponUI(); updateWantedUI();
   updateGame();
 </script>
-<div id="app">
-  <div id="crosshair"></div>
-  <div id="hud">…</div>
 
-  <div class="pad" id="movePad">
-    <div class="knob"></div>
-    <div class="label">MOVE</div>
-  </div>
 
-  <div class="pad" id="lookPad">
-    <div class="knob"></div>
-    <div class="label">LOOK</div>
-  </div>
-</div>
+
+
 
 <script>
 (() => {
