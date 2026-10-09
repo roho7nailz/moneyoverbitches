@@ -5,7 +5,133 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
-<title>Mobile Controller</title>
+<title>Mobile Controller</title><style>
+  :root{
+    --stick-size: clamp(110px, 28vmin, 168px);
+    --knob-size: 46%;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body{
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #0b0e13;
+    color: #cfd8e3;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;           /* kills scroll / pinch / pull-to-refresh */
+    overscroll-behavior: none;
+  }
+
+  #app{ position: fixed; inset: 0; touch-action: none; }
+
+  /* ---------- sticks ---------- */
+  .pad{
+    position: absolute;
+    bottom: calc(26px + env(safe-area-inset-bottom));
+    width: var(--stick-size);
+    height: var(--stick-size);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    touch-action: none;
+    background: radial-gradient(circle at 50% 50%,
+                rgba(255,255,255,.075),
+                rgba(255,255,255,.015) 72%);
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 8px 30px rgba(0,0,0,.45), inset 0 0 24px rgba(120,200,255,.05);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .pad.active{
+    border-color: rgba(120,210,255,.55);
+    box-shadow: 0 8px 30px rgba(0,0,0,.45), 0 0 22px rgba(80,190,255,.25);
+  }
+
+  /* crosshair inside each pad */
+  .pad::before, .pad::after{
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,.09);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+  .pad::before{ width: 2px; height: 64%; }
+  .pad::after { height: 2px; width: 64%; }
+
+  #movePad{ left:  calc(26px + env(safe-area-inset-left)); }
+  #lookPad{ right: calc(26px + env(safe-area-inset-right)); }
+
+  .knob{
+    width: var(--knob-size);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 28%, #8fdcff, #2f86bd 58%, #15496a);
+    box-shadow:
+      0 6px 18px rgba(0,0,0,.5),
+      inset 0 0 0 1px rgba(255,255,255,.28),
+      inset 0 -6px 12px rgba(0,0,0,.28);
+    transform: translate3d(0,0,0);
+    transition: transform .13s cubic-bezier(.2,.8,.3,1);
+    will-change: transform;
+    pointer-events: none;
+  }
+  .pad.active .knob{ transition: none; }   /* 1:1 while dragging */
+
+  #lookPad .knob{
+    background: radial-gradient(circle at 35% 28%, #ffd79a, #d98a2b 58%, #7a4610);
+  }
+
+  .label{
+    position: absolute;
+    bottom: -20px;
+    font-size: 10px;
+    letter-spacing: .22em;
+    opacity: .4;
+    pointer-events: none;
+  }
+
+  /* ---------- centre reticle ---------- */
+  #crosshair{
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 26px; height: 26px;
+    transform: translate(-50%, -50%);
+    opacity: .3;
+    pointer-events: none;
+  }
+  #crosshair::before, #crosshair::after{
+    content: '';
+    position: absolute;
+    background: #8fd3ff;
+    border-radius: 2px;
+  }
+  #crosshair::before{ left: 50%; top: 0; width: 1.5px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after { top: 50%; left: 0; height: 1.5px; width: 100%; transform: translateY(-50%); }
+
+  /* ---------- debug HUD ---------- */
+  #hud{
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(0,0,0,.4);
+    border: 1px solid rgba(255,255,255,.1);
+    font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre;
+    text-align: left;
+    pointer-events: none;
+    opacity: .85;
+  }
+</style>
 <style>
   :root{
     --stick-size: clamp(110px, 28vmin, 168px);
