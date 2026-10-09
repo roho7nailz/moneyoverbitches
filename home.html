@@ -1,1 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>Mobile Controller</title>
+<style>
+  :root{
+    --stick-size: clamp(110px, 28vmin, 168px);
+    --knob-size: 46%;
+  }
 
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body{
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #0b0e13;
+    color: #cfd8e3;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;           /* kills scroll / pinch / pull-to-refresh */
+    overscroll-behavior: none;
+  }
+
+  #app{ position: fixed; inset: 0; touch-action: none; }
+
+  /* ---------- sticks ---------- */
+  .pad{
+    position: absolute;
+    bottom: calc(26px + env(safe-area-inset-bottom));
+    width: var(--stick-size);
+    height: var(--stick-size);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    touch-action: none;
+    background: radial-gradient(circle at 50% 50%,
+                rgba(255,255,255,.075),
+                rgba(255,255,255,.015) 72%);
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 8px 30px rgba(0,0,0,.45), inset 0 0 24px rgba(120,200,255,.05);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .pad.active{
+    border-color: rgba(120,210,255,.55);
+    box-shadow: 0 8px 30px rgba(0,0,0,.45), 0 0 22px rgba(80,190,255,.25);
+  }
+
+  /* crosshair inside each pad */
+  .pad::before, .pad::after{
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,.09);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+  .pad::before{ width: 2px; height: 64%; }
+  .pad::after { height: 2px; width: 64%; }
+
+  #movePad{ left:  calc(26px + env(safe-area-inset-left)); }
+  #lookPad{ right: calc(26px + env(safe-area-inset-right)); }
+
+  .knob{
+    width: var(--knob-size);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 28%, #8fdcff, #2f86bd 58%, #15496a);
+    box-shadow:
+      0 6px 18px rgba(0,0,0,.5),
+      inset 0 0 0 1px rgba(255,255,255,.28),
+      inset 0 -6px 12px rgba(0,0,0,.28);
+    transform: translate3d(0,0,0);
+    transition: transform .13s cubic-bezier(.2,.8,.3,1);
+    will-change: transform;
+    pointer-events: none;
+  }
+  .pad.active .knob{ transition: none; }   /* 1:1 while dragging */
+
+  #lookPad .knob{
+    background: radial-gradient(circle at 35% 28%, #ffd79a, #d98a2b 58%, #7a4610);
+  }
+
+  .label{
+    position: absolute;
+    bottom: -20px;
+    font-size: 10px;
+    letter-spacing: .22em;
+    opacity: .4;
+    pointer-events: none;
+  }
+
+  /* ---------- centre reticle ---------- */
+  #crosshair{
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 26px; height: 26px;
+    transform: translate(-50%, -50%);
+    opacity: .3;
+    pointer-events: none;
+  }
+  #crosshair::before, #crosshair::after{
+    content: '';
+    position: absolute;
+    background: #8fd3ff;
+    border-radius: 2px;
+  }
+  #crosshair::before{ left: 50%; top: 0; width: 1.5px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after { top: 50%; left: 0; height: 1.5px; width: 100%; transform: translateY(-50%); }
+
+  /* ---------- debug HUD ---------- */
+  #hud{
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(0,0,0,.4);
+    border: 1px solid rgba(255,255,255,.1);
+    font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre;
+    text-align: left;
+    pointer-events: none;
+    opacity: .85;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="crosshair"></div>
+  <div id="hud">…</div>
+
+  <div class="pad" id="movePad">
+    <div class="knob"></div>
+    <div class="label">MOVE</div>
+  </div>
+
+  <div class="pad" id="lookPad">
+    <div class="knob"></div>
+    <div class="label">LOOK</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  /* ============================================================
+     Virtual stick
+     Emits { x, y, magnitude, active }
+       x : -1 (left)  ->  +1 (right)
+       y : -1 (down)  ->  +1 (up)
+     ============================================================ */
+  class Stick {
+    constructor(root, opts = {}) {
+      this.root      = root;
+      this.knob      = root.querySelector('.knob');
+      this.onChange  = opts.onChange || (() => {});
+      this.deadzone  = opts.deadzone ?? 0.12;
+      this.invertY   = opts.invertY  ?? false;
+      this.pointerId = null;
+      this.maxDist   = 40;
+      this.center    = { x: 0, y: 0 };
+      this.value     = { x: 0, y: 0, magnitude: 0, active: false };
+
+      root.addEventListener('pointerdown',   e => this._onDown(e));
+      root.addEventListener('pointermove',   e => this._onMove(e));
+      root.addEventListener('pointerup',     e => this._onUp(e));
+      root.addEventListener('pointercancel', e => this._onUp(e));
+      root.addEventListener('lostpointercapture', e => {
+        if (e.pointerId === this.pointerId) this.reset();
+      });
+      root.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    _onDown(e) {
+      if (this.pointerId !== null) return;          // already owned by another finger
+      e.preventDefault();
+      this.pointerId = e.pointerId;
+      try { this.root.setPointerCapture(e.pointerId); } catch {}
+
+      const r = this.root.getBoundingClientRect();
+      this.center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+
+      const knobR = this.knob.getBoundingClientRect().width / 2;
+      this.maxDist = Math.max(10, r.width / 2 - knobR);
+
+      this.root.classList.add('active');
+      if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+
+      this._update(e.clientX, e.clientY);
+    }
+
+    _onMove(e) {
+      if (e.pointerId !== this.pointerId) return;
+      e.preventDefault();
+      this._update(e.clientX, e.clientY);
+    }
+
+    _onUp(e) {
+      if (e.pointerId !== this.pointerId) return;
+      this.reset();
+    }
+
+    _update(clientX, clientY) {
+      let dx = clientX - this.center.x;
+      let dy = clientY - this.center.y;
+
+      // clamp travel to the pad radius
+      const dist = Math.hypot(dx, dy);
+      if (dist > this.maxDist) {
+        const k = this.maxDist / dist;
+        dx *= k; dy *= k;
+      }
+      this._moveKnob(dx, dy);
+
+      // normalise: screen-up  =>  +y
+      let nx =  dx / this.maxDist;
+      let ny = -dy / this.maxDist;
+      if (this.invertY) ny = -ny;
+
+      // dead zone + rescale so output is continuous from 0..1
+      const mag = Math.hypot(nx, ny);
+      if (mag < this.deadzone) {
+        nx = 0; ny = 0;
+      } else {
+        const scaled = (mag - this.deadzone) / (1 - this.deadzone);
+        nx = (nx / mag) * scaled;
+        ny = (ny / mag) * scaled;
+      }
+
+      this.value = { x: nx, y: ny, magnitude: Math.hypot(nx, ny), active: true };
+      this.onChange(this.value);
+    }
+
+    _moveKnob(dx, dy) {
+      this.knob.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+    }
+
+    reset() {
+      if (this.pointerId !== null) {
+        try { this.root.releasePointerCapture(this.pointerId); } catch {}
+      }
+      this.pointerId = null;
+      this.root.classList.remove('active');
+      this._moveKnob(0, 0);
+      this.value = { x: 0, y: 0, magnitude: 0, active: false };
+      this.onChange(this.value);
+    }
+  }
+
+  /* ============================================================
+     Instantiate the two sticks
+     ============================================================ */
+  const moveStick = new Stick(document.getElementById('movePad'), { deadzone: 0.15 });
+  const lookStick = new Stick(document.getElementById('lookPad'), { deadzone: 0.08 });
+
+  // Raw input, updated by the sticks
+  const input = {
+    moveX: 0, moveY: 0,   // strafe, forward
+    lookX: 0, lookY: 0    // yaw,    pitch
+  };
+
+  moveStick.onChange = v => { input.moveX = v.x; input.moveY = v.y; };
+  lookStick.onChange = v => { input.lookX = v.x; input.lookY = v.y; };
+
+  /* ============================================================
+     Desktop keyboard fallback (WASD + arrows)
+     ============================================================ */
+  const keys = new Set();
+  addEventListener('keydown', e => {
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+    keys.add(e.code);
+  });
+  addEventListener('keyup', e => keys.delete(e.code));
+  addEventListener('blur', () => { keys.clear(); moveStick.reset(); lookStick.reset(); });
+
+  function keyboard() {
+    const k = c => keys.has(c) ? 1 : 0;
+    return {
+      mx: k('KeyD') - k('KeyA'),
+      my: k('KeyW') - k('KeyS'),
+      lx: k('ArrowRight') - k('ArrowLeft'),
+      ly: k('ArrowUp')    - k('ArrowDown')
+    };
+  }
+
+  /* ============================================================
+     DEMO CONSUMER
+     Replace this block with your engine's input handling
+     (three.js / Unity WebGL / Unreal / custom renderer...)
+     ============================================================ */
+  const LOOK_SPEED = 2.6;   // rad / sec at full deflection
+  const MOVE_SPEED = 3.2;   // units / sec at full deflection
+
+  const player = { yaw: 0, pitch: 0, x: 0, z: 0 };
+  const hud = document.getElementById('hud');
+
+  let last = performance.now();
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+
+    // merge stick + keyboard (stick wins when deflected)
+    const kb = keyboard();
+    const mx = moveStick.value.magnitude > 0 ? input.moveX : kb.mx;
+    const my = moveStick.value.magnitude > 0 ? input.moveY : kb.my;
+    const lx = lookStick.value.magnitude > 0 ? input.lookX : kb.lx;
+    const ly = lookStick.value.magnitude > 0 ? input.lookY : kb.ly;
+
+    /* ---- LOOK (rate based) ---- */
+    player.yaw   -= lx * LOOK_SPEED * dt;                        // right = turn right
+    player.pitch += ly * LOOK_SPEED * dt;                        // up    = look up
+    player.pitch  = clamp(player.pitch, -Math.PI/2 + 0.02, Math.PI/2 - 0.02);
+
+    /* ---- MOVE (relative to facing) ---- */
+    const s = Math.sin(player.yaw), c = Math.cos(player.yaw);
+    const fwdX = -s, fwdZ = -c;   // forward
+    const rgtX =  c, rgtZ = -s;   // right
+
+    player.x += (rgtX * mx + fwdX * my) * MOVE_SPEED * dt;
+    player.z += (rgtZ * mx + fwdZ * my) * MOVE_SPEED * dt;
+
+    /* ---- HUD ---- */
+    const deg = r => (r * 180 / Math.PI).toFixed(0).padStart(4, ' ');
+    hud.textContent =
+      `MOVE  x ${mx.toFixed(2).padStart(5)}   y ${my.toFixed(2).padStart(5)}\n` +
+      `LOOK  x ${lx.toFixed(2).padStart(5)}   y ${ly.toFixed(2).padStart(5)}\n` +
+      `YAW ${deg(player.yaw)}°   PITCH ${deg(player.pitch)}°\n` +
+      `POS  ${player.x.toFixed(1)}, ${player.z.toFixed(1)}`;
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
